@@ -34,11 +34,29 @@ export async function reelExtract(url: string) {
 
   if (url.length > 0) {
     await axios.get('https://www.facebook.com/plugins/video.php?href=' + encodeURIComponent(url))
-      .then(res => {
+      .then(async res => {
         const html = res.data;
 
-        if (html.includes('.mp4'))
+        if (html.includes('.mp4')) {
           cdnData = extractFullFromHtml(html)
+        }
+        else if (html.includes('www.instagram.com')) {
+          const $ = cheerio.load(html);
+          const text = $('script[type="text/javascript"]').text();
+          const startIndex = text.indexOf('"') + 1;
+          const endIndex = text.indexOf('"', startIndex);
+          const link = text.substring(startIndex, endIndex).replaceAll('\\', '').replace('reel', 'p').split('?')[0];
+  
+          await axios.get(link, { headers: { "User-Agent": userAgents.ios_specific_a() } })
+            .then(async res => {
+              const html = res.data;
+              const $ = cheerio.load(html);
+              const jsonContent = $('script[type="application/ld+json"]').text();
+              const postObj = JSON.parse(jsonContent);
+  
+              cdnData = { sdSrcNoRateLimit: postObj.video[0].contentUrl };
+            });
+        }
       })
       .catch(() => { });
   }
